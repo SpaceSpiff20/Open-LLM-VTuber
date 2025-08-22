@@ -29,6 +29,7 @@ dependencies = [
     "scipy>=1.14.1",
     "sherpa-onnx>=1.10.39",
     "soundfile>=0.12.1",
+    "speechify-api",
     "tomli>=2.2.1",
     "torch==2.2.2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
     "torch>=2.6.0; sys_platform == 'darwin' and platform_machine == 'arm64'",
