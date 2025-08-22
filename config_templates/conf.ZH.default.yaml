@@ -271,7 +271,7 @@ character_config:
     #   'azure_tts', 'pyttsx3_tts', 'edge_tts', 'bark_tts',
     #   'cosyvoice_tts', 'melo_tts', 'coqui_tts',
     #   'fish_api_tts', 'x_tts', 'gpt_sovits_tts', 'sherpa_onnx_tts'
-    #   'minimax_tts'
+    #   'minimax_tts', 'speechify_tts'
 
     siliconflow_tts:
       api_url: "https://api.siliconflow.cn/v1/audio/speech"
@@ -414,6 +414,20 @@ character_config:
       # 自定义发音字典，默认为空。
       # 示例: '{"tone": ["测试/(ce4)(shi4)", "危险/dangerous"]}'
       pronunciation_dict: ''
+
+    # Speechify TTS 配置
+    # 在以下地址注册获取 API 密钥：https://console.sws.speechify.com/signup
+    speechify_tts:
+      api_key: '' # 您的 Speechify API 密钥
+      voice_id: 'scott' # 用于合成的语音 ID（默认：'scott'）
+      # 支持的模型：'simba-english', 'simba-multilingual'
+      model: 'simba-english' # 要使用的 TTS 模型
+      # 输入文本的语言（例如，'en-US', 'fr-FR', 'de-DE'）。留空以自动检测
+      language: '' # 可选：指定语言以获得更好的质量
+      # 支持的音频格式：'aac', 'mp3', 'ogg', 'wav'
+      audio_format: 'mp3' # 音频输出格式
+      loudness_normalization: true # 应用响度标准化
+      text_normalization: true # 应用文本标准化
 
   # =================== Voice Activity Detection ===================
   vad_config:
