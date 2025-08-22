@@ -172,6 +172,18 @@ class TTSFactory:
                 pitch=kwargs.get("pitch"),
                 speed=kwargs.get("speed"),
             )
+        elif engine_type == "speechify_tts":
+            from .speechify_tts import TTSEngine as SpeechifyTTSEngine
+
+            return SpeechifyTTSEngine(
+                api_key=kwargs.get("api_key"),
+                voice_id=kwargs.get("voice_id", "scott"),
+                model=kwargs.get("model", "simba-english"),
+                language=kwargs.get("language"),
+                audio_format=kwargs.get("audio_format", "mp3"),
+                loudness_normalization=kwargs.get("loudness_normalization", True),
+                text_normalization=kwargs.get("text_normalization", True),
+            )
         else:
             raise ValueError(f"Unknown TTS engine type: {engine_type}")
 
