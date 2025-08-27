@@ -424,15 +424,14 @@ character_config:
     # Sign up for API key at: https://console.sws.speechify.com/signup
     speechify_tts:
       api_key: '' # Your Speechify API key
-      voice_id: 'scott' # Voice ID to use for synthesis (default: 'scott')
+      voice_id: 'scott' # Voice ID to use for synthesis (default: scott)
       # Supported models: 'simba-english', 'simba-multilingual'
       model: 'simba-english' # TTS model to use
-      # Language of input text (e.g., 'en-US', 'fr-FR', 'de-DE'). Leave empty for auto-detection
-      language: '' # Optional: specify language for better quality
+      language: 'en-US' # Language code (e.g., en-US). If None, auto-detection is used
       # Supported audio formats: 'aac', 'mp3', 'ogg', 'wav'
-      audio_format: 'mp3' # Audio output format
-      loudness_normalization: true # Apply loudness normalization
-      text_normalization: true # Apply text normalization
+      audio_format: 'mp3' # Audio format
+      loudness_normalization: true # Enable loudness normalization
+      text_normalization: true # Enable text normalization
 
   # =================== Voice Activity Detection ===================
   vad_config:
