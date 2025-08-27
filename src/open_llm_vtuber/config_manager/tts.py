@@ -431,6 +431,46 @@ class MinimaxTTSConfig(I18nMixin):
     }
 
 
+class SpeechifyTTSConfig(I18nMixin):
+    """Configuration for Speechify TTS."""
+
+    api_key: str = Field(..., alias="api_key")
+    voice_id: str = Field("scott", alias="voice_id")
+    model: Literal["simba-english", "simba-multilingual"] = Field(
+        "simba-english", alias="model"
+    )
+    language: Optional[str] = Field(None, alias="language")
+    audio_format: Literal["aac", "mp3", "ogg", "wav"] = Field("mp3", alias="audio_format")
+    loudness_normalization: bool = Field(True, alias="loudness_normalization")
+    text_normalization: bool = Field(True, alias="text_normalization")
+
+    DESCRIPTIONS: ClassVar[Dict[str, Description]] = {
+        "api_key": Description(
+            en="API key for Speechify TTS service", zh="Speechify TTS 服务的 API 密钥"
+        ),
+        "voice_id": Description(
+            en="Voice ID to use for synthesis (default: scott)", zh="用于合成的语音 ID（默认：scott）"
+        ),
+        "model": Description(
+            en="TTS model to use (simba-english or simba-multilingual)", 
+            zh="要使用的 TTS 模型（simba-english 或 simba-multilingual）"
+        ),
+        "language": Description(
+            en="Language code (e.g., en-US). If None, auto-detection is used", 
+            zh="语言代码（如 en-US）。如果为 None，则使用自动检测"
+        ),
+        "audio_format": Description(
+            en="Audio format (aac, mp3, ogg, or wav)", zh="音频格式（aac、mp3、ogg 或 wav）"
+        ),
+        "loudness_normalization": Description(
+            en="Enable loudness normalization", zh="启用响度标准化"
+        ),
+        "text_normalization": Description(
+            en="Enable text normalization", zh="启用文本标准化"
+        ),
+    }
+
+
 class TTSConfig(I18nMixin):
     """Configuration for Text-to-Speech."""
 
@@ -450,6 +490,7 @@ class TTSConfig(I18nMixin):
         "openai_tts",  # Add openai_tts here
         "spark_tts",
         "minimax_tts",
+        "speechify_tts",
     ] = Field(..., alias="tts_model")
 
     azure_tts: Optional[AzureTTSConfig] = Field(None, alias="azure_tts")
@@ -471,6 +512,7 @@ class TTSConfig(I18nMixin):
     openai_tts: Optional[OpenAITTSConfig] = Field(None, alias="openai_tts")
     spark_tts: Optional[SparkTTSConfig] = Field(None, alias="spark_tts")
     minimax_tts: Optional[MinimaxTTSConfig] = Field(None, alias="minimax_tts")
+    speechify_tts: Optional[SpeechifyTTSConfig] = Field(None, alias="speechify_tts")
 
     DESCRIPTIONS: ClassVar[Dict[str, Description]] = {
         "tts_model": Description(
@@ -506,6 +548,9 @@ class TTSConfig(I18nMixin):
         "spark_tts": Description(en="Configuration for Spark TTS", zh="Spark TTS 配置"),
         "minimax_tts": Description(
             en="Configuration for Minimax TTS", zh="Minimax TTS 配置"
+        ),
+        "speechify_tts": Description(
+            en="Configuration for Speechify TTS", zh="Speechify TTS 配置"
         ),
     }
 
@@ -544,5 +589,7 @@ class TTSConfig(I18nMixin):
             values.spark_tts.model_validate(values.spark_tts.model_dump())
         elif tts_model == "minimax_tts" and values.minimax_tts is not None:
             values.minimax_tts.model_validate(values.minimax_tts.model_dump())
+        elif tts_model == "speechify_tts" and values.speechify_tts is not None:
+            values.speechify_tts.model_validate(values.speechify_tts.model_dump())
 
         return values

@@ -1,29 +1,20 @@
 import os
-import sys
+import base64
 from pathlib import Path
 from typing import Optional
 
 from loguru import logger
 from speechify import Speechify
 from speechify.tts import GetSpeechOptionsRequest
-import base64
 
 from .tts_interface import TTSInterface
-
-# Add the current directory to sys.path for relative imports if needed
-current_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(current_dir)
 
 
 class TTSEngine(TTSInterface):
     """
     Uses Speechify's TTS API to generate speech.
     
-    Speechify is a cloud-based text-to-speech service that supports multiple languages
-    and voices. This implementation provides access to Speechify's high-quality TTS
-    capabilities with support for various audio formats and voice options.
-    
-    API Reference: https://console.sws.speechify.com/signup
+    API Reference: https://docs.speechify.com/api/tts
     """
 
     def __init__(
@@ -35,24 +26,18 @@ class TTSEngine(TTSInterface):
         audio_format: str = "mp3",
         loudness_normalization: bool = True,
         text_normalization: bool = True,
-        **kwargs,
     ):
         """
-        Initialize the Speechify TTS engine.
+        Initializes the Speechify TTS engine.
 
         Args:
-            api_key (str): The Speechify API key for authentication.
-            voice_id (str, optional): The voice ID to use for synthesis. Defaults to "scott".
-            model (str, optional): The TTS model to use. Must be "simba-english" or "simba-multilingual". 
-                                 Defaults to "simba-english".
-            language (str, optional): The language of the input text (e.g., "en-US", "fr-FR"). 
-                                    If None, Speechify will auto-detect. Defaults to None.
-            audio_format (str, optional): The audio format. Must be one of "aac", "mp3", "ogg", "wav". 
-                                        Defaults to "mp3".
-            loudness_normalization (bool, optional): Whether to apply loudness normalization. 
-                                                   Defaults to True.
-            text_normalization (bool, optional): Whether to apply text normalization. 
-                                               Defaults to True.
+            api_key (str): API key for Speechify service.
+            voice_id (str): Voice ID to use for synthesis. Defaults to "scott".
+            model (str): TTS model to use. Must be "simba-english" or "simba-multilingual".
+            language (str, optional): Language code (e.g., "en-US"). If None, auto-detection is used.
+            audio_format (str): Audio format. Must be one of: "aac", "mp3", "ogg", "wav".
+            loudness_normalization (bool): Enable loudness normalization.
+            text_normalization (bool): Enable text normalization.
         """
         self.api_key = api_key
         self.voice_id = voice_id
@@ -63,43 +48,43 @@ class TTSEngine(TTSInterface):
         self.text_normalization = text_normalization
         
         # Validate audio format
-        if self.audio_format not in ["aac", "mp3", "ogg", "wav"]:
+        valid_formats = ["aac", "mp3", "ogg", "wav"]
+        if self.audio_format not in valid_formats:
             logger.warning(
-                f"Unsupported audio format '{self.audio_format}' for Speechify TTS. Defaulting to 'mp3'."
+                f"Unsupported audio format '{self.audio_format}' for Speechify TTS. "
+                f"Defaulting to 'mp3'. Valid formats: {valid_formats}"
             )
             self.audio_format = "mp3"
         
         # Validate model
-        if self.model not in ["simba-english", "simba-multilingual"]:
+        valid_models = ["simba-english", "simba-multilingual"]
+        if self.model not in valid_models:
             logger.warning(
-                f"Unsupported model '{self.model}' for Speechify TTS. Defaulting to 'simba-english'."
+                f"Unsupported model '{self.model}' for Speechify TTS. "
+                f"Defaulting to 'simba-english'. Valid models: {valid_models}"
             )
             self.model = "simba-english"
         
-        # Set file extension based on audio format
-        self.file_extension = self.audio_format
-        self.new_audio_dir = "cache"
-        self.temp_audio_file = "temp_speechify"
-
-        if not os.path.exists(self.new_audio_dir):
-            os.makedirs(self.new_audio_dir)
+        self.cache_dir = "cache"
+        if not os.path.exists(self.cache_dir):
+            os.makedirs(self.cache_dir)
 
         try:
             # Initialize Speechify client
-            self.client = Speechify(token=api_key, **kwargs)
-            logger.info("Speechify TTS Engine initialized successfully")
+            self.client = Speechify(token=api_key)
+            logger.info(f"Speechify TTS Engine initialized with model: {self.model}")
         except Exception as e:
             logger.critical(f"Failed to initialize Speechify client: {e}")
             self.client = None
 
-    def generate_audio(self, text: str, file_name_no_ext: Optional[str] = None) -> Optional[str]:
+    def generate_audio(self, text: str, file_name_no_ext: Optional[str] = None) -> str:
         """
         Generate speech audio file using Speechify TTS.
 
         Args:
             text (str): The text to synthesize.
             file_name_no_ext (str, optional): Name of the file without extension. 
-                                            Defaults to a generated name.
+                Defaults to a generated name.
 
         Returns:
             str: The path to the generated audio file, or None if generation failed.
@@ -108,19 +93,8 @@ class TTSEngine(TTSInterface):
             logger.error("Speechify client not initialized. Cannot generate audio.")
             return None
 
-        # Validate input text
-        if not isinstance(text, str):
-            logger.warning("Speechify TTS: The text cannot be non-string.")
-            logger.warning(f"Received type: {type(text)} and value: {text}")
-            return None
-        
-        text = text.strip()
-        if not text:
-            logger.warning("Speechify TTS: There is no text to speak.")
-            return None
-
-        # Generate file path
-        file_name = self.generate_cache_file_name(file_name_no_ext, self.file_extension)
+        # Generate cache file name
+        file_name = self.generate_cache_file_name(file_name_no_ext, self.audio_format)
         speech_file_path = Path(file_name)
 
         try:
@@ -129,13 +103,13 @@ class TTSEngine(TTSInterface):
                 f"with voice '{self.voice_id}' model '{self.model}'"
             )
             
-            # Create options for the TTS request
+            # Prepare options
             options = GetSpeechOptionsRequest(
                 loudness_normalization=self.loudness_normalization,
                 text_normalization=self.text_normalization,
             )
             
-            # Make the TTS request
+            # Make TTS request
             audio_response = self.client.tts.audio.speech(
                 audio_format=self.audio_format,
                 input=text,
@@ -145,7 +119,7 @@ class TTSEngine(TTSInterface):
                 voice_id=self.voice_id,
             )
             
-            # Decode the base64 audio data and write to file
+            # Decode base64 audio data and write to file
             audio_bytes = base64.b64decode(audio_response.audio_data)
             
             with open(speech_file_path, "wb") as f:
@@ -154,12 +128,6 @@ class TTSEngine(TTSInterface):
             logger.info(
                 f"Successfully generated audio file via Speechify: {speech_file_path}"
             )
-            
-            # Log billing information if available
-            if hasattr(audio_response, 'billable_characters_count'):
-                logger.debug(
-                    f"Billable characters: {audio_response.billable_characters_count}"
-                )
 
         except Exception as e:
             logger.critical(f"Error: Speechify TTS unable to generate audio: {e}")
@@ -218,9 +186,8 @@ class TTSEngine(TTSInterface):
 
 # Example usage (optional, for testing)
 # if __name__ == '__main__':
-#     # Configure TTSEngine with your Speechify API key
 #     tts_engine = TTSEngine(
-#         api_key="YOUR_SPEECHIFY_API_KEY",
+#         api_key="YOUR_TOKEN",
 #         voice_id="scott",
 #         model="simba-english",
 #         language="en-US"
