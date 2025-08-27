@@ -418,16 +418,15 @@ character_config:
     # Speechify TTS 配置
     # 在以下地址注册获取 API 密钥：https://console.sws.speechify.com/signup
     speechify_tts:
-      api_key: '' # 您的 Speechify API 密钥
-      voice_id: 'scott' # 用于合成的语音 ID（默认：'scott'）
+      api_key: '' # 你的 Speechify API 密钥
+      voice_id: 'scott' # 用于合成的语音 ID（默认：scott）
       # 支持的模型：'simba-english', 'simba-multilingual'
       model: 'simba-english' # 要使用的 TTS 模型
-      # 输入文本的语言（例如，'en-US', 'fr-FR', 'de-DE'）。留空以自动检测
-      language: '' # 可选：指定语言以获得更好的质量
+      language: 'en-US' # 语言代码（如 en-US）。如果为 None，则使用自动检测
       # 支持的音频格式：'aac', 'mp3', 'ogg', 'wav'
-      audio_format: 'mp3' # 音频输出格式
-      loudness_normalization: true # 应用响度标准化
-      text_normalization: true # 应用文本标准化
+      audio_format: 'mp3' # 音频格式
+      loudness_normalization: true # 启用响度标准化
+      text_normalization: true # 启用文本标准化
 
   # =================== Voice Activity Detection ===================
   vad_config:
