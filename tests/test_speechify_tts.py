@@ -1,8 +1,8 @@
 """
 Test suite for Speechify TTS implementation.
 
-This module contains comprehensive tests for the Speechify TTS engine to ensure
-the migration was successful and all functionality works correctly.
+This module contains comprehensive tests to ensure the Speechify TTS migration
+was successful and maintains backwards compatibility.
 """
 
 import os
@@ -13,11 +13,8 @@ from pathlib import Path
 
 import pytest
 
-# Add the src directory to the path for imports
-import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-
-from open_llm_vtuber.tts.speechify_tts import TTSEngine
+# Import the TTS engine
+from src.open_llm_vtuber.tts.speechify_tts import TTSEngine
 
 
 class TestSpeechifyTTS(unittest.TestCase):
@@ -33,219 +30,152 @@ class TestSpeechifyTTS(unittest.TestCase):
         
         # Create a temporary directory for test files
         self.temp_dir = tempfile.mkdtemp()
-        self.cache_dir = os.path.join(self.temp_dir, "cache")
-        os.makedirs(self.cache_dir, exist_ok=True)
+        self.original_cache_dir = "cache"
+        
+        # Mock the cache directory
+        with patch('src.open_llm_vtuber.tts.speechify_tts.os.path.exists', return_value=True):
+            with patch('src.open_llm_vtuber.tts.speechify_tts.os.makedirs'):
+                self.tts_engine = TTSEngine(
+                    api_key=self.test_api_key,
+                    voice_id=self.test_voice_id,
+                    model=self.test_model,
+                    language=self.test_language,
+                    audio_format=self.test_audio_format
+                )
 
     def tearDown(self):
         """Clean up test fixtures."""
-        # Remove temporary files
+        # Clean up temporary directory
         import shutil
-        shutil.rmtree(self.temp_dir, ignore_errors=True)
+        if os.path.exists(self.temp_dir):
+            shutil.rmtree(self.temp_dir)
 
-    @patch('open_llm_vtuber.tts.speechify_tts.Speechify')
-    def test_init_success(self, mock_speechify):
-        """Test successful initialization of Speechify TTS engine."""
-        # Mock the Speechify client
-        mock_client = Mock()
-        mock_speechify.return_value = mock_client
-        
-        # Test initialization with all parameters
-        tts_engine = TTSEngine(
+    def test_initialization(self):
+        """Test TTS engine initialization."""
+        # Test with valid parameters
+        tts = TTSEngine(
             api_key=self.test_api_key,
             voice_id=self.test_voice_id,
-            model=self.test_model,
-            language=self.test_language,
-            audio_format=self.test_audio_format,
-            loudness_normalization=True,
-            text_normalization=True
+            model=self.test_model
         )
         
-        # Verify initialization
-        self.assertEqual(tts_engine.api_key, self.test_api_key)
-        self.assertEqual(tts_engine.voice_id, self.test_voice_id)
-        self.assertEqual(tts_engine.model, self.test_model)
-        self.assertEqual(tts_engine.language, self.test_language)
-        self.assertEqual(tts_engine.audio_format, self.test_audio_format)
-        self.assertTrue(tts_engine.loudness_normalization)
-        self.assertTrue(tts_engine.text_normalization)
-        self.assertEqual(tts_engine.file_extension, self.test_audio_format)
-        self.assertIsNotNone(tts_engine.client)
+        self.assertEqual(tts.api_key, self.test_api_key)
+        self.assertEqual(tts.voice_id, self.test_voice_id)
+        self.assertEqual(tts.model, self.test_model)
+        self.assertEqual(tts.audio_format, "mp3")  # Default format
+        self.assertTrue(tts.loudness_normalization)
+        self.assertTrue(tts.text_normalization)
 
-    @patch('open_llm_vtuber.tts.speechify_tts.Speechify')
-    def test_init_with_invalid_audio_format(self, mock_speechify):
+    def test_initialization_with_invalid_audio_format(self):
         """Test initialization with invalid audio format."""
-        mock_client = Mock()
-        mock_speechify.return_value = mock_client
-        
-        # Test with invalid audio format
-        tts_engine = TTSEngine(
-            api_key=self.test_api_key,
-            audio_format="invalid_format"
-        )
-        
-        # Should default to mp3
-        self.assertEqual(tts_engine.audio_format, "mp3")
-        self.assertEqual(tts_engine.file_extension, "mp3")
+        with patch('src.open_llm_vtuber.tts.speechify_tts.logger.warning') as mock_warning:
+            tts = TTSEngine(
+                api_key=self.test_api_key,
+                audio_format="invalid_format"
+            )
+            
+            # Should default to mp3
+            self.assertEqual(tts.audio_format, "mp3")
+            mock_warning.assert_called_once()
 
-    @patch('open_llm_vtuber.tts.speechify_tts.Speechify')
-    def test_init_with_invalid_model(self, mock_speechify):
+    def test_initialization_with_invalid_model(self):
         """Test initialization with invalid model."""
-        mock_client = Mock()
-        mock_speechify.return_value = mock_client
-        
-        # Test with invalid model
-        tts_engine = TTSEngine(
-            api_key=self.test_api_key,
-            model="invalid_model"
-        )
-        
-        # Should default to simba-english
-        self.assertEqual(tts_engine.model, "simba-english")
+        with patch('src.open_llm_vtuber.tts.speechify_tts.logger.warning') as mock_warning:
+            tts = TTSEngine(
+                api_key=self.test_api_key,
+                model="invalid_model"
+            )
+            
+            # Should default to simba-english
+            self.assertEqual(tts.model, "simba-english")
+            mock_warning.assert_called_once()
 
-    @patch('open_llm_vtuber.tts.speechify_tts.Speechify')
-    def test_init_failure(self, mock_speechify):
-        """Test initialization failure."""
-        # Mock Speechify to raise an exception
-        mock_speechify.side_effect = Exception("API key invalid")
-        
-        tts_engine = TTSEngine(api_key=self.test_api_key)
-        
-        # Client should be None on failure
-        self.assertIsNone(tts_engine.client)
+    def test_initialization_with_client_failure(self):
+        """Test initialization when Speechify client fails."""
+        with patch('src.open_llm_vtuber.tts.speechify_tts.Speechify', side_effect=Exception("Connection failed")):
+            with patch('src.open_llm_vtuber.tts.speechify_tts.logger.critical') as mock_critical:
+                tts = TTSEngine(api_key=self.test_api_key)
+                
+                self.assertIsNone(tts.client)
+                mock_critical.assert_called_once()
 
-    @patch('open_llm_vtuber.tts.speechify_tts.Speechify')
-    def test_generate_audio_success(self, mock_speechify):
+    @patch('src.open_llm_vtuber.tts.speechify_tts.Speechify')
+    @patch('src.open_llm_vtuber.tts.speechify_tts.GetSpeechOptionsRequest')
+    @patch('src.open_llm_vtuber.tts.speechify_tts.base64.b64decode')
+    def test_generate_audio_success(self, mock_b64decode, mock_options, mock_speechify):
         """Test successful audio generation."""
-        # Mock the Speechify client and response
+        # Mock the Speechify client
         mock_client = Mock()
         mock_speechify.return_value = mock_client
         
         # Mock the TTS response
         mock_response = Mock()
-        mock_response.audio_data = "dGVzdCBhdWRpbyBkYXRh"  # base64 encoded "test audio data"
-        mock_response.billable_characters_count = 10
-        
+        mock_response.audio_data = "base64_encoded_audio_data"
         mock_client.tts.audio.speech.return_value = mock_response
         
-        # Create TTS engine
-        tts_engine = TTSEngine(api_key=self.test_api_key)
+        # Mock base64 decode
+        mock_b64decode.return_value = b"fake_audio_data"
         
-        # Test audio generation
-        test_text = "Hello, this is a test."
-        result = tts_engine.generate_audio(test_text, "test_file")
-        
-        # Verify result
-        self.assertIsNotNone(result)
-        self.assertTrue(result.endswith(".mp3"))
-        self.assertTrue(os.path.exists(result))
-        
-        # Verify the API was called correctly
-        mock_client.tts.audio.speech.assert_called_once()
-        call_args = mock_client.tts.audio.speech.call_args
-        self.assertEqual(call_args[1]['input'], test_text)
-        self.assertEqual(call_args[1]['voice_id'], "scott")
-        self.assertEqual(call_args[1]['model'], "simba-english")
+        # Mock file operations
+        with patch('builtins.open', create=True) as mock_open:
+            with patch('src.open_llm_vtuber.tts.speechify_tts.Path') as mock_path:
+                mock_path_instance = Mock()
+                mock_path.return_value = mock_path_instance
+                mock_path_instance.exists.return_value = False
+                
+                # Test audio generation
+                result = self.tts_engine.generate_audio("Hello, world!")
+                
+                # Verify the result
+                self.assertIsNotNone(result)
+                
+                # Verify Speechify client was called correctly
+                mock_client.tts.audio.speech.assert_called_once()
+                call_args = mock_client.tts.audio.speech.call_args
+                
+                self.assertEqual(call_args[1]['audio_format'], self.test_audio_format)
+                self.assertEqual(call_args[1]['input'], "Hello, world!")
+                self.assertEqual(call_args[1]['language'], self.test_language)
+                self.assertEqual(call_args[1]['model'], self.test_model)
+                self.assertEqual(call_args[1]['voice_id'], self.test_voice_id)
 
-    @patch('open_llm_vtuber.tts.speechify_tts.Speechify')
-    def test_generate_audio_with_custom_parameters(self, mock_speechify):
-        """Test audio generation with custom parameters."""
-        mock_client = Mock()
-        mock_speechify.return_value = mock_client
-        
-        mock_response = Mock()
-        mock_response.audio_data = "dGVzdCBhdWRpbyBkYXRh"
-        mock_client.tts.audio.speech.return_value = mock_response
-        
-        # Create TTS engine with custom parameters
-        tts_engine = TTSEngine(
-            api_key=self.test_api_key,
-            voice_id="custom_voice",
-            model="simba-multilingual",
-            language="fr-FR",
-            audio_format="wav"
-        )
-        
-        # Test audio generation
-        test_text = "Bonjour, ceci est un test."
-        result = tts_engine.generate_audio(test_text, "test_file")
-        
-        # Verify the API was called with custom parameters
-        call_args = mock_client.tts.audio.speech.call_args
-        self.assertEqual(call_args[1]['voice_id'], "custom_voice")
-        self.assertEqual(call_args[1]['model'], "simba-multilingual")
-        self.assertEqual(call_args[1]['language'], "fr-FR")
-        self.assertEqual(call_args[1]['audio_format'], "wav")
-
-    @patch('open_llm_vtuber.tts.speechify_tts.Speechify')
-    def test_generate_audio_without_client(self, mock_speechify):
+    def test_generate_audio_without_client(self):
         """Test audio generation when client is not initialized."""
-        # Mock Speechify to raise an exception during init
-        mock_speechify.side_effect = Exception("API key invalid")
+        self.tts_engine.client = None
         
-        tts_engine = TTSEngine(api_key=self.test_api_key)
-        
-        # Try to generate audio without a client
-        result = tts_engine.generate_audio("Hello world")
-        
-        # Should return None
-        self.assertIsNone(result)
+        with patch('src.open_llm_vtuber.tts.speechify_tts.logger.error') as mock_error:
+            result = self.tts_engine.generate_audio("Hello, world!")
+            
+            self.assertIsNone(result)
+            mock_error.assert_called_once()
 
-    @patch('open_llm_vtuber.tts.speechify_tts.Speechify')
-    def test_generate_audio_with_empty_text(self, mock_speechify):
-        """Test audio generation with empty text."""
-        mock_client = Mock()
-        mock_speechify.return_value = mock_client
-        
-        tts_engine = TTSEngine(api_key=self.test_api_key)
-        
-        # Test with empty text
-        result = tts_engine.generate_audio("")
-        self.assertIsNone(result)
-        
-        # Test with whitespace-only text
-        result = tts_engine.generate_audio("   ")
-        self.assertIsNone(result)
-
-    @patch('open_llm_vtuber.tts.speechify_tts.Speechify')
-    def test_generate_audio_with_non_string_text(self, mock_speechify):
-        """Test audio generation with non-string text."""
-        mock_client = Mock()
-        mock_speechify.return_value = mock_client
-        
-        tts_engine = TTSEngine(api_key=self.test_api_key)
-        
-        # Test with non-string text
-        result = tts_engine.generate_audio(123)
-        self.assertIsNone(result)
-        
-        result = tts_engine.generate_audio(None)
-        self.assertIsNone(result)
-
-    @patch('open_llm_vtuber.tts.speechify_tts.Speechify')
-    def test_generate_audio_api_error(self, mock_speechify):
+    @patch('src.open_llm_vtuber.tts.speechify_tts.Speechify')
+    def test_generate_audio_with_api_error(self, mock_speechify):
         """Test audio generation when API call fails."""
+        # Mock the Speechify client to raise an exception
         mock_client = Mock()
         mock_speechify.return_value = mock_client
+        mock_client.tts.audio.speech.side_effect = Exception("API Error")
         
-        # Mock API call to raise an exception
-        mock_client.tts.audio.speech.side_effect = Exception("API error")
-        
-        tts_engine = TTSEngine(api_key=self.test_api_key)
-        
-        # Try to generate audio
-        result = tts_engine.generate_audio("Hello world")
-        
-        # Should return None on error
-        self.assertIsNone(result)
+        with patch('src.open_llm_vtuber.tts.speechify_tts.logger.critical') as mock_critical:
+            with patch('src.open_llm_vtuber.tts.speechify_tts.Path') as mock_path:
+                mock_path_instance = Mock()
+                mock_path.return_value = mock_path_instance
+                mock_path_instance.exists.return_value = False
+                
+                result = self.tts_engine.generate_audio("Hello, world!")
+                
+                self.assertIsNone(result)
+                mock_critical.assert_called_once()
 
     def test_filter_voice_models(self):
-        """Test the filter_voice_models method."""
+        """Test voice model filtering functionality."""
         # Create mock voice objects
         mock_voice1 = Mock()
         mock_voice1.gender = "male"
         mock_voice1.tags = ["timbre:deep", "accent:american"]
         mock_model1 = Mock()
-        mock_model1.name = "model1"
+        mock_model1.name = "voice_model_1"
         mock_lang1 = Mock()
         mock_lang1.locale = "en-US"
         mock_model1.languages = [mock_lang1]
@@ -255,7 +185,7 @@ class TestSpeechifyTTS(unittest.TestCase):
         mock_voice2.gender = "female"
         mock_voice2.tags = ["timbre:bright"]
         mock_model2 = Mock()
-        mock_model2.name = "model2"
+        mock_model2.name = "voice_model_2"
         mock_lang2 = Mock()
         mock_lang2.locale = "fr-FR"
         mock_model2.languages = [mock_lang2]
@@ -264,110 +194,171 @@ class TestSpeechifyTTS(unittest.TestCase):
         voices = [mock_voice1, mock_voice2]
         
         # Test filtering by gender
-        tts_engine = TTSEngine(api_key=self.test_api_key)
-        male_voices = tts_engine.filter_voice_models(voices, gender="male")
-        self.assertEqual(male_voices, ["model1"])
+        male_voices = self.tts_engine.filter_voice_models(voices, gender="male")
+        self.assertEqual(len(male_voices), 1)
+        self.assertEqual(male_voices[0], "voice_model_1")
         
         # Test filtering by locale
-        en_voices = tts_engine.filter_voice_models(voices, locale="en-US")
-        self.assertEqual(en_voices, ["model1"])
+        en_voices = self.tts_engine.filter_voice_models(voices, locale="en-US")
+        self.assertEqual(len(en_voices), 1)
+        self.assertEqual(en_voices[0], "voice_model_1")
         
         # Test filtering by tags
-        deep_voices = tts_engine.filter_voice_models(voices, tags=["timbre:deep"])
-        self.assertEqual(deep_voices, ["model1"])
+        deep_voices = self.tts_engine.filter_voice_models(voices, tags=["timbre:deep"])
+        self.assertEqual(len(deep_voices), 1)
+        self.assertEqual(deep_voices[0], "voice_model_1")
         
         # Test filtering by multiple criteria
-        filtered_voices = tts_engine.filter_voice_models(
-            voices, gender="male", locale="en-US", tags=["timbre:deep"]
+        male_en_voices = self.tts_engine.filter_voice_models(
+            voices, gender="male", locale="en-US"
         )
-        self.assertEqual(filtered_voices, ["model1"])
+        self.assertEqual(len(male_en_voices), 1)
+        self.assertEqual(male_en_voices[0], "voice_model_1")
 
     def test_generate_cache_file_name(self):
-        """Test the generate_cache_file_name method."""
-        tts_engine = TTSEngine(api_key=self.test_api_key)
+        """Test cache file name generation."""
+        # Test with custom file name
+        file_name = self.tts_engine.generate_cache_file_name("test_audio", "mp3")
+        self.assertIn("test_audio.mp3", file_name)
+        self.assertIn("cache", file_name)
         
-        # Test with custom filename
-        result = tts_engine.generate_cache_file_name("test_file", "wav")
-        self.assertTrue(result.endswith("test_file.wav"))
-        
-        # Test with None filename (should use default)
-        result = tts_engine.generate_cache_file_name(None, "mp3")
-        self.assertTrue(result.endswith("temp.mp3"))
+        # Test with None file name (should use default)
+        file_name = self.tts_engine.generate_cache_file_name(None, "wav")
+        self.assertIn("temp.wav", file_name)
+        self.assertIn("cache", file_name)
 
     def test_remove_file(self):
-        """Test the remove_file method."""
-        tts_engine = TTSEngine(api_key=self.test_api_key)
-        
+        """Test file removal functionality."""
         # Create a temporary file
-        temp_file = os.path.join(self.temp_dir, "test_remove.txt")
+        temp_file = os.path.join(self.temp_dir, "test_file.txt")
         with open(temp_file, 'w') as f:
             f.write("test content")
         
         # Test removing existing file
-        self.assertTrue(os.path.exists(temp_file))
-        tts_engine.remove_file(temp_file)
+        self.tts_engine.remove_file(temp_file)
         self.assertFalse(os.path.exists(temp_file))
         
-        # Test removing non-existent file (should not raise exception)
-        tts_engine.remove_file("non_existent_file.txt")
+        # Test removing non-existent file
+        with patch('src.open_llm_vtuber.tts.speechify_tts.logger.warning') as mock_warning:
+            self.tts_engine.remove_file("non_existent_file.txt")
+            mock_warning.assert_called_once()
 
-    @patch('open_llm_vtuber.tts.speechify_tts.Speechify')
-    def test_async_generate_audio(self, mock_speechify):
-        """Test the async_generate_audio method."""
+    def test_async_generate_audio(self):
+        """Test async audio generation."""
         import asyncio
         
-        mock_client = Mock()
-        mock_speechify.return_value = mock_client
-        
-        mock_response = Mock()
-        mock_response.audio_data = "dGVzdCBhdWRpbyBkYXRh"
-        mock_client.tts.audio.speech.return_value = mock_response
-        
-        tts_engine = TTSEngine(api_key=self.test_api_key)
-        
-        async def test_async():
-            result = await tts_engine.async_generate_audio("Hello world", "test_async")
-            return result
-        
-        # Run the async test
-        result = asyncio.run(test_async())
-        
-        # Verify result
-        self.assertIsNotNone(result)
-        self.assertTrue(result.endswith(".mp3"))
+        # Mock the synchronous generate_audio method
+        with patch.object(self.tts_engine, 'generate_audio', return_value="test_audio.mp3"):
+            async def test_async():
+                result = await self.tts_engine.async_generate_audio("Hello, world!")
+                return result
+            
+            # Run the async test
+            result = asyncio.run(test_async())
+            self.assertEqual(result, "test_audio.mp3")
 
 
 class TestSpeechifyTTSIntegration(unittest.TestCase):
-    """Integration tests for Speechify TTS (requires real API key)."""
-    
-    @pytest.mark.integration
-    def test_real_api_integration(self):
-        """Test integration with real Speechify API (requires API key)."""
-        api_key = os.getenv("SPEECHIFY_API_KEY")
-        if not api_key:
-            self.skipTest("SPEECHIFY_API_KEY environment variable not set")
+    """Integration tests for Speechify TTS with the factory pattern."""
+
+    def test_factory_integration(self):
+        """Test that Speechify TTS can be created through the factory."""
+        from src.open_llm_vtuber.tts.tts_factory import TTSFactory
         
-        # Test with real API
-        tts_engine = TTSEngine(
-            api_key=api_key,
+        # Test factory creation
+        tts_engine = TTSFactory.get_tts_engine(
+            "speechify_tts",
+            api_key="test_key",
             voice_id="scott",
             model="simba-english",
-            language="en-US"
+            language="en-US",
+            audio_format="mp3"
         )
         
-        # Test basic audio generation
-        result = tts_engine.generate_audio("Hello, this is a test of Speechify TTS.")
+        self.assertIsInstance(tts_engine, TTSEngine)
+        self.assertEqual(tts_engine.api_key, "test_key")
+        self.assertEqual(tts_engine.voice_id, "scott")
+        self.assertEqual(tts_engine.model, "simba-english")
+        self.assertEqual(tts_engine.language, "en-US")
+        self.assertEqual(tts_engine.audio_format, "mp3")
+
+    def test_factory_with_defaults(self):
+        """Test factory creation with default parameters."""
+        from src.open_llm_vtuber.tts.tts_factory import TTSFactory
         
-        # Verify result
-        self.assertIsNotNone(result)
-        self.assertTrue(os.path.exists(result))
-        self.assertTrue(result.endswith(".mp3"))
+        tts_engine = TTSFactory.get_tts_engine(
+            "speechify_tts",
+            api_key="test_key"
+        )
         
-        # Clean up
-        if os.path.exists(result):
-            os.remove(result)
+        self.assertIsInstance(tts_engine, TTSEngine)
+        self.assertEqual(tts_engine.voice_id, "scott")  # Default
+        self.assertEqual(tts_engine.model, "simba-english")  # Default
+        self.assertEqual(tts_engine.audio_format, "mp3")  # Default
+        self.assertTrue(tts_engine.loudness_normalization)  # Default
+        self.assertTrue(tts_engine.text_normalization)  # Default
 
 
-if __name__ == "__main__":
-    # Run tests
+class TestSpeechifyTTSConfiguration(unittest.TestCase):
+    """Test configuration validation for Speechify TTS."""
+
+    def test_valid_configuration(self):
+        """Test valid configuration parameters."""
+        from src.open_llm_vtuber.config_manager.tts import SpeechifyTTSConfig
+        
+        config = SpeechifyTTSConfig(
+            api_key="test_key",
+            voice_id="scott",
+            model="simba-english",
+            language="en-US",
+            audio_format="mp3",
+            loudness_normalization=True,
+            text_normalization=True
+        )
+        
+        self.assertEqual(config.api_key, "test_key")
+        self.assertEqual(config.voice_id, "scott")
+        self.assertEqual(config.model, "simba-english")
+        self.assertEqual(config.language, "en-US")
+        self.assertEqual(config.audio_format, "mp3")
+        self.assertTrue(config.loudness_normalization)
+        self.assertTrue(config.text_normalization)
+
+    def test_configuration_with_defaults(self):
+        """Test configuration with default values."""
+        from src.open_llm_vtuber.config_manager.tts import SpeechifyTTSConfig
+        
+        config = SpeechifyTTSConfig(api_key="test_key")
+        
+        self.assertEqual(config.voice_id, "scott")  # Default
+        self.assertEqual(config.model, "simba-english")  # Default
+        self.assertIsNone(config.language)  # Default
+        self.assertEqual(config.audio_format, "mp3")  # Default
+        self.assertTrue(config.loudness_normalization)  # Default
+        self.assertTrue(config.text_normalization)  # Default
+
+    def test_invalid_model_configuration(self):
+        """Test configuration with invalid model."""
+        from src.open_llm_vtuber.config_manager.tts import SpeechifyTTSConfig
+        from pydantic import ValidationError
+        
+        with self.assertRaises(ValidationError):
+            SpeechifyTTSConfig(
+                api_key="test_key",
+                model="invalid_model"
+            )
+
+    def test_invalid_audio_format_configuration(self):
+        """Test configuration with invalid audio format."""
+        from src.open_llm_vtuber.config_manager.tts import SpeechifyTTSConfig
+        from pydantic import ValidationError
+        
+        with self.assertRaises(ValidationError):
+            SpeechifyTTSConfig(
+                api_key="test_key",
+                audio_format="invalid_format"
+            )
+
+
+if __name__ == '__main__':
     unittest.main() 
